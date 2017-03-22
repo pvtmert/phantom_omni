@@ -56,49 +56,22 @@ public:
   ros::Publisher button_publisher;
   ros::Subscriber haptic_sub;
   std::string omni_name;
-  std::string sensable_frame_name;
-  std::string link_names[7];
+  std::string tf_prefix_;
 
   OmniState *state;
   tf::TransformBroadcaster br;
 
-  void init(OmniState *s) {
-    ros::param::param(std::string("~omni_name"), omni_name,
-        std::string("phantom"));
-
-    //Publish on NAME/pose
-    std::ostringstream stream00;
-    stream00 << omni_name << "/pose";
-    std::string pose_topic_name = std::string(stream00.str());
-    pose_publisher = n.advertise<geometry_msgs::PoseStamped>(
-        pose_topic_name.c_str(), 100);
-
+  void init(OmniState *s)
+  {
+    // Joint states publisher
     joint_pub = n.advertise<sensor_msgs::JointState>("joint_states", 1);
 
-    //Publish button state on NAME/button
-    std::ostringstream stream0;
-    stream0 << omni_name << "/button";
-    std::string button_topic = std::string(stream0.str());
-    button_publisher = n.advertise<omni_msgs::OmniButtonEvent>(
-        button_topic.c_str(), 100);
+    // Publish button state
+    button_publisher = n.advertise<omni_msgs::OmniButtonEvent>("button", 100);
 
-    //Subscribe to NAME/force_feedback
-    std::ostringstream stream01;
-    stream01 << omni_name << "/force_feedback";
-    std::string force_feedback_topic = std::string(stream01.str());
-    haptic_sub = n.subscribe(force_feedback_topic.c_str(), 100,
-        &PhantomROS::force_callback, this);
+    // Subscribe to force_feedback
+    haptic_sub = n.subscribe("force_feedback", 100, &PhantomROS::force_callback, this);
 
-    //Frame of force feedback (NAME_sensable)
-    std::ostringstream stream2;
-    stream2 << omni_name << "_sensable";
-    sensable_frame_name = std::string(stream2.str());
-
-    for (int i = 0; i < 7; i++) {
-      std::ostringstream stream1;
-      stream1 << omni_name << "_link" << i;
-      link_names[i] = std::string(stream1.str());
-    }
 
     state = s;
     state->buttons[0] = 0;
@@ -115,7 +88,7 @@ public:
     state->out_vel3 = zeros;  //3x1 history of velocity
     state->pos_hist1 = zeros; //3x1 history of position
     state->pos_hist2 = zeros; //3x1 history of position
-    state->lock = true;
+    state->lock = false;
     state->lock_pos = zeros;
 
   }
@@ -156,21 +129,14 @@ public:
     joint_state.position[5] = -state->thetas[6] - M_PI;
     joint_pub.publish(joint_state);
 
-    //Sample 'end effector' pose
-    geometry_msgs::PoseStamped pose_stamped;
-    pose_stamped.header.frame_id = link_names[6].c_str();
-    pose_stamped.header.stamp = ros::Time::now();
-    pose_stamped.pose.position.x = 0.0;   //was 0.03 to end of phantom
-    pose_stamped.pose.orientation.w = 1.;
-    pose_publisher.publish(pose_stamped);
-
     if ((state->buttons[0] != state->buttons_prev[0])
         or (state->buttons[1] != state->buttons_prev[1])) {
-
+      /* Disable lock
       if ((state->buttons[0] == state->buttons[1])
           and (state->buttons[0] == 1)) {
         state->lock = !(state->lock);
       }
+      */
       omni_msgs::OmniButtonEvent button_event;
       button_event.grey_button = state->buttons[0];
       button_event.white_button = state->buttons[1];
@@ -208,11 +174,12 @@ HDCallbackCode HDCALLBACK omni_state_callback(void *pUserData) {
   omni_state->out_vel3 = omni_state->out_vel2;
   omni_state->out_vel2 = omni_state->out_vel1;
   omni_state->out_vel1 = omni_state->velocity;
+  /* Disable Lock
   if (omni_state->lock == true) {
     omni_state->force = 0.04 * (omni_state->lock_pos - omni_state->position)
         - 0.001 * omni_state->velocity;
   }
-
+  */
   hdSetDoublev(HD_CURRENT_FORCE, omni_state->force);
 
   //Get buttons

@@ -118,7 +118,7 @@
     <parent link="tip" />
     <child link="stylus" />
     <origin xyz="0 -0.023 0" rpy="3.14159 3.14159 0" />
-    <axis xyz="0 1 0" />
+    <axis xyz="0 -1 0" />
     <limit lower="-2.58" upper="2.58" velocity="100" effort="5" />
   </joint>
 </robot>
